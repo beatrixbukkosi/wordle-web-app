@@ -1,0 +1,31 @@
+/* Base Streamlit Overrides */
+.block-container { padding-top: 1.5rem !important; padding-bottom: 0rem !important; }
+footer { visibility: hidden; }
+header { visibility: hidden; }
+.stButton > button { padding: 0px 5px !important; }
+
+/* General Typography */
+.center-text { text-align: center; }
+.profile-name-highlight { color: #4CAF50; }
+.gray-label { color: #777; }
+
+/* Wordle Game Board */
+.wordle-grid { display: flex; flex-direction: column; align-items: center; gap: 5px; margin-bottom: 15px; }
+.wordle-row { display: flex; gap: 5px; }
+.wordle-box {
+    width: 55px; 
+    height: 55px; 
+    display: flex; 
+    justify-content: center; 
+    align-items: center; 
+    font-size: 28px; 
+    font-weight: bold; 
+    text-transform: uppercase;
+    border: 2px solid; 
+}
+
+/* Statistics View */
+.stats-container { display: flex; justify-content: center; gap: 30px; margin-bottom: 20px; margin-top: 10px; }
+.stat-box { text-align: center; }
+.stat-label { font-size: 16px; color: #777; }
+.stat-value { font-size: 36px; font-weight: bold; }
