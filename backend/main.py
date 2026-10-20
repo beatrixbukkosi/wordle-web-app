@@ -34,12 +34,16 @@ def start_game():
 
 class GuessRequest(BaseModel):
     guess: str
+    target_word: str | None = None
 
 @app.post("/api/v1/game/validate")
 def validate_guess(request: GuessRequest):
-    """Validates if the submitted guess exists in the dictionary."""
-    is_valid = game_service.is_valid_guess(request.guess)
+    """Validates if the submitted guess exists in the dictionary and checks for a win."""
+    guess_upper = request.guess.upper()
+    is_valid = game_service.is_valid_guess(guess_upper)
+    is_winning = bool(is_valid and request.target_word and guess_upper == request.target_word.upper())
     return {
-        "guess": request.guess.upper(),
-        "is_valid": is_valid
+        "guess": guess_upper,
+        "is_valid": is_valid,
+        "is_winning": is_winning
     }

@@ -7,6 +7,7 @@ def initialize_state():
         st.session_state.board = [["" for _ in range(5)] for _ in range(6)]
         st.session_state.current_row = 0
         st.session_state.current_col = 0
+        st.session_state.game_won = False
         
         try:
             response = requests.get("http://127.0.0.1:8000/api/v1/game/start")

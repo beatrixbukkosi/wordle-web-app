@@ -1,6 +1,47 @@
 import streamlit as st
+import requests
+
+def submit_guess():
+    if st.session_state.get("game_won", False):
+        return
+
+    row = st.session_state.current_row
+    if st.session_state.current_col != 5:
+        return
+
+    guess_word = "".join(st.session_state.board[row]).upper()
+    target_word = st.session_state.get("target_word", "").upper()
+
+    try:
+        response = requests.post(
+            "http://127.0.0.1:8000/api/v1/game/validate",
+            json={"guess": guess_word, "target_word": target_word},
+            timeout=5
+        )
+        if response.status_code == 200:
+            data = response.json()
+            if not data.get("is_valid", False):
+                st.toast(f"'{guess_word}' is not a valid word!", icon="⚠️")
+                return
+
+            if data.get("is_winning", False):
+                st.session_state.game_won = True
+                st.toast("Congratulations! That's the winning word! 🎉", icon="🏆")
+            else:
+                st.toast(f"'{guess_word}' is a valid guess!", icon="✅")
+
+            if not st.session_state.game_won and st.session_state.current_row < 5:
+                st.session_state.current_row += 1
+                st.session_state.current_col = 0
+        else:
+            st.toast("Error validating guess with server.", icon="🚨")
+    except requests.exceptions.RequestException:
+        st.toast("Backend is unreachable!", icon="🚨")
 
 def handle_key_press(key):
+    if st.session_state.get("game_won", False):
+        return
+
     row = st.session_state.current_row
     col = st.session_state.current_col
 
@@ -10,11 +51,7 @@ def handle_key_press(key):
             st.session_state.board[row][st.session_state.current_col] = ""
             
     elif key == "SUBMIT":
-        if col == 5:
-            st.toast("Submitting guess to backend...", icon="🚀")
-            if st.session_state.current_row < 5:
-                st.session_state.current_row += 1
-                st.session_state.current_col = 0
+        submit_guess()
                 
     else:
         if col < 5 and row < 6:
@@ -22,19 +59,19 @@ def handle_key_press(key):
             st.session_state.current_col += 1
 
 def render():
-    # Render Game Board using CSS classes
     grid_html = "<div class='wordle-grid'>"
     for row in range(6):
         grid_html += "<div class='wordle-row'>"
         for col in range(5):
             letter = st.session_state.board[row][col]
-            # Dynamic border color depending on content
             border_color = "#878a8c" if letter else "#d3d6da"
             grid_html += f"<div class='wordle-box' style='border-color: {border_color};'>{letter}</div>"
         grid_html += "</div>"
     grid_html += "</div>"
 
     st.markdown(grid_html, unsafe_allow_html=True)
+
+    game_won = st.session_state.get("game_won", False)
 
     # Render Keyboard
     keyboard_rows = [
@@ -50,6 +87,7 @@ def render():
                 key, 
                 key=f"btn_{key}", 
                 use_container_width=True, 
+                disabled=game_won,
                 on_click=handle_key_press, 
                 args=(key,)
             )
@@ -57,12 +95,11 @@ def render():
     st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
 
     # Render Submit Button
-    can_submit = (st.session_state.current_col == 5)
+    can_submit = (st.session_state.current_col == 5 and not game_won)
     _, center_col, _ = st.columns([1, 2, 1])
     center_col.button(
         "SUBMIT GUESS", 
         use_container_width=True, 
         disabled=not can_submit, 
-        on_click=handle_key_press, 
-        args=("SUBMIT",)
+        on_click=submit_guess
     )

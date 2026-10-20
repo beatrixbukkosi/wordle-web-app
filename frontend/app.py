@@ -30,6 +30,7 @@ with st.sidebar:
                 st.session_state.board = [["" for _ in range(5)] for _ in range(6)]
                 st.session_state.current_row = 0
                 st.session_state.current_col = 0
+                st.session_state.game_won = False
                 st.rerun() 
         except requests.exceptions.ConnectionError:
             st.error("Backend is unreachable!")
