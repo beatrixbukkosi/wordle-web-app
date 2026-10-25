@@ -32,3 +32,6 @@ def initialize_state():
             {"Rank": "🥈 2", "Player": "Bob", "Played": 35, "Wins": 30, "Win %": "85%", "Longest Streak": 5},
         ]
         st.session_state.current_view = "game"
+
+    if "row_colors" not in st.session_state:
+        st.session_state.row_colors = [[None for _ in range(5)] for _ in range(6)]

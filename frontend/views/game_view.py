@@ -1,6 +1,13 @@
 import streamlit as st
 import requests
 
+TILE_COLORS = {
+    "GREEN": "#6aaa64",
+    "YELLOW": "#c9b458",
+    "GRAY": "#787c7e",
+}
+
+
 def submit_guess():
     if st.session_state.get("game_won", False):
         return
@@ -29,6 +36,8 @@ def submit_guess():
                 st.toast("Congratulations! That's the winning word! 🎉", icon="🏆")
             else:
                 st.toast(f"'{guess_word}' is a valid guess!", icon="✅")
+
+            st.session_state.row_colors[row] = data.get("colors") or [None] * len(guess_word)
 
             if not st.session_state.game_won and st.session_state.current_row < 5:
                 st.session_state.current_row += 1
@@ -64,8 +73,14 @@ def render():
         grid_html += "<div class='wordle-row'>"
         for col in range(5):
             letter = st.session_state.board[row][col]
-            border_color = "#878a8c" if letter else "#d3d6da"
-            grid_html += f"<div class='wordle-box' style='border-color: {border_color};'>{letter}</div>"
+            color = st.session_state.row_colors[row][col]
+            if color:
+                tile_color = TILE_COLORS[color]
+                style = f"background-color: {tile_color}; border-color: {tile_color}; color: white;"
+            else:
+                border_color = "#878a8c" if letter else "#d3d6da"
+                style = f"border-color: {border_color};"
+            grid_html += f"<div class='wordle-box' style='{style}'>{letter}</div>"
         grid_html += "</div>"
     grid_html += "</div>"
 

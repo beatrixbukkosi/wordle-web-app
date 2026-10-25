@@ -35,3 +35,24 @@ class GameService:
     def is_valid_guess(self, guess: str) -> bool:
         """Checks if the guess exists in the valid dictionary."""
         return guess.upper() in self.valid_guesses
+
+    def evaluate_guess(self, guess: str, target_word: str) -> list[str]:
+        """Returns GREEN, YELLOW, or GRAY for each letter in a guess."""
+        guess = guess.upper()
+        target_word = target_word.upper()
+        remaining_target_letters = list(target_word)
+        colors = ["GRAY"] * len(guess)
+
+        for index, letter in enumerate(guess):
+            if index < len(target_word) and letter == target_word[index]:
+                colors[index] = "GREEN"
+                remaining_target_letters.remove(letter)
+
+        for index, letter in enumerate(guess):
+            if colors[index] == "GREEN":
+                continue
+            if letter in remaining_target_letters:
+                colors[index] = "YELLOW"
+                remaining_target_letters.remove(letter)
+
+        return colors

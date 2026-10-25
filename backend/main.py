@@ -42,8 +42,14 @@ def validate_guess(request: GuessRequest):
     guess_upper = request.guess.upper()
     is_valid = game_service.is_valid_guess(guess_upper)
     is_winning = bool(is_valid and request.target_word and guess_upper == request.target_word.upper())
+    colors = (
+        game_service.evaluate_guess(guess_upper, request.target_word)
+        if is_valid and request.target_word
+        else None
+    )
     return {
         "guess": guess_upper,
         "is_valid": is_valid,
-        "is_winning": is_winning
+        "is_winning": is_winning,
+        "colors": colors,
     }
