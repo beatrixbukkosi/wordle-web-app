@@ -61,6 +61,9 @@ cover/
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
+data/wordle_games.sqlite3
+data/wordle_games.sqlite3-shm
+data/wordle_games.sqlite3-wal
 
 # Flask stuff:
 instance/
