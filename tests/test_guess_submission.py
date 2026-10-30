@@ -61,6 +61,50 @@ def test_submit_button_style_shows_valid_and_invalid_guesses() -> None:
     assert game_view.get_submit_button_style(None) == ""
 
 
+def test_winning_guess_sends_active_player_id_and_refreshes_streak(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = FakeSessionState(
+        game_won=False,
+        current_row=0,
+        current_col=5,
+        guess_is_valid=True,
+        board=[list("APPLE") for _ in range(6)],
+        row_colors=[[None] * 5 for _ in range(6)],
+        session_id="session-1",
+        player_id=21,
+    )
+    submitted_payload: dict[str, object] = {}
+
+    def mock_post(url: str, **kwargs: object) -> SimpleNamespace:
+        assert url.endswith("/api/v1/game/validate")
+        submitted_payload.update(kwargs["json"])
+        return SimpleNamespace(
+            status_code=200,
+            json=lambda: {
+                "is_valid": True,
+                "is_winning": True,
+                "game_status": "WON",
+                "colors": ["GREEN"] * 5,
+            },
+        )
+
+    monkeypatch.setattr(game_view.st, "session_state", state)
+    monkeypatch.setattr(game_view.requests, "post", mock_post)
+    monkeypatch.setattr(
+        game_view.state_manager,
+        "load_player_stats",
+        lambda: setattr(state, "current_streak", 1),
+    )
+
+    game_view.submit_guess()
+
+    assert submitted_payload["session_id"] == "session-1"
+    assert submitted_payload["user_id"] == 21
+    assert state.game_won is True
+    assert state.current_streak == 1
+
+
 @pytest.mark.parametrize("current_row", [0, 2, 4])
 def test_valid_nonwinning_guess_uses_one_attempt(
     monkeypatch: pytest.MonkeyPatch, current_row: int

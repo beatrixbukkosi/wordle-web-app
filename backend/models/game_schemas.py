@@ -43,6 +43,13 @@ class GuessRequest(BaseModel):
     guess: str
     session_id: str | None = None
     target_word: str | None = None
+    user_id: int | None = None
+
+
+class GamePlayerAssociationRequest(BaseModel):
+    """Request payload for associating an existing game with its active player."""
+
+    user_id: int
 
 
 class WordValidationRequest(BaseModel):
@@ -73,3 +80,47 @@ class GuessResponse(BaseModel):
     def __getitem__(self, item: str) -> Any:
         """Enables dictionary-like subscripting for backward compatibility with unit tests."""
         return getattr(self, item)
+
+
+class UserCreateRequest(BaseModel):
+    """Request payload for creating or selecting a persistent player profile."""
+
+    username: str = Field(min_length=1, max_length=15)
+
+
+class UserUpdateRequest(BaseModel):
+    """Request payload for renaming a persistent player profile."""
+
+    username: str = Field(min_length=1, max_length=15)
+
+
+class UserResponse(BaseModel):
+    """Public player profile data."""
+
+    id: int
+    username: str
+
+
+class UserStatsResponse(BaseModel):
+    """Player profile and aggregate game statistics."""
+
+    user_id: int
+    username: str
+    games_played: int
+    games_won: int
+    current_streak: int
+    max_streak: int
+    win_rate: float
+
+
+class LeaderboardEntry(BaseModel):
+    """A ranked player and their aggregate statistics."""
+
+    rank: int
+    user_id: int
+    username: str
+    games_played: int
+    games_won: int
+    current_streak: int
+    max_streak: int
+    win_rate: float

@@ -137,9 +137,12 @@ def submit_guess() -> None:
     guess_word = "".join(st.session_state.board[row]).upper()
     session_id = st.session_state.get("session_id")
 
-    payload: dict[str, str | None] = {"guess": guess_word}
+    payload: dict[str, str | int | None] = {"guess": guess_word}
     if session_id:
         payload["session_id"] = session_id
+    player_id = st.session_state.get("player_id")
+    if player_id is not None:
+        payload["user_id"] = player_id
     if getattr(st.session_state, "target_word", None):
         payload["target_word"] = st.session_state.target_word
 
@@ -163,6 +166,7 @@ def submit_guess() -> None:
             if is_winning:
                 st.session_state.game_won = True
                 st.session_state.game_status = "WON"
+                state_manager.load_player_stats()
             else:
                 remaining = data.get("remaining_attempts")
                 status = data.get("game_status")
@@ -170,6 +174,7 @@ def submit_guess() -> None:
                 if is_lost:
                     st.session_state.game_lost = True
                     st.session_state.game_status = "LOST"
+                    state_manager.load_player_stats()
                 else:
                     if st.session_state.current_row < 5:
                         st.session_state.current_row += 1

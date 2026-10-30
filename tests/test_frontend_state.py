@@ -6,6 +6,7 @@ import pytest
 import streamlit as st
 
 import state_manager
+from views import profile_view
 
 
 class FakeSessionState(dict):
@@ -89,7 +90,7 @@ def test_start_new_game_sets_session_id_in_url_and_state(monkeypatch: pytest.Mon
     monkeypatch.setattr(
         state_manager.requests,
         "post",
-        lambda *args, **kwargs: SimpleNamespace(
+        lambda url, **kwargs: SimpleNamespace(
             status_code=201,
             json=lambda: {
                 "session_id": "new-session-789",
@@ -114,6 +115,169 @@ def test_start_new_game_sets_session_id_in_url_and_state(monkeypatch: pytest.Mon
     assert "target_word" not in fake_state
 
 
+def test_start_new_game_associates_active_player(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_state = FakeSessionState(player_id=42)
+    fake_query_params: dict[str, str] = {}
+    request_params: list[dict[str, int] | None] = []
+
+    def mock_post(url: str, **kwargs: Any) -> SimpleNamespace:
+        request_params.append(kwargs.get("params"))
+        return SimpleNamespace(
+            status_code=201,
+            json=lambda: {"session_id": "player-game-session"},
+        )
+
+    monkeypatch.setattr(st, "session_state", fake_state)
+    monkeypatch.setattr(st, "query_params", fake_query_params)
+    monkeypatch.setattr(state_manager.requests, "post", mock_post)
+
+    state_manager.start_new_game()
+
+    assert request_params == [{"user_id": 42}]
+
+
+def test_initialize_without_profile_does_not_create_guest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_state = FakeSessionState()
+    fake_query_params: dict[str, str] = {}
+    requested_urls: list[str] = []
+
+    def mock_post(url: str, **kwargs: Any) -> SimpleNamespace:
+        requested_urls.append(url)
+        return SimpleNamespace(
+            status_code=201,
+            json=lambda: {"session_id": "anonymous-session"},
+        )
+
+    monkeypatch.setattr(st, "session_state", fake_state)
+    monkeypatch.setattr(st, "query_params", fake_query_params)
+    monkeypatch.setattr(state_manager.requests, "post", mock_post)
+
+    state_manager.initialize_state()
+
+    assert fake_state.player_name == ""
+    assert fake_state.saved_profiles == []
+    assert "player_id" not in fake_state
+    assert requested_urls == [f"{state_manager.BACKEND_URL}/api/v1/game/start"]
+    assert "player" not in fake_query_params
+
+
+def test_rename_active_profile_uses_update_and_keeps_profile_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_state = FakeSessionState(
+        player_id=42,
+        player_name="OldName",
+        profile_original_name="OldName",
+        saved_profiles=["OldName", "Other"],
+        profile_mode="edit",
+        name_input="NewName",
+    )
+    fake_query_params: dict[str, str] = {}
+    request_data: dict[str, Any] = {}
+
+    def mock_put(url: str, **kwargs: Any) -> SimpleNamespace:
+        request_data.update({"url": url, **kwargs})
+        return SimpleNamespace(
+            status_code=200,
+            json=lambda: {"id": 42, "username": "NewName"},
+        )
+
+    monkeypatch.setattr(st, "session_state", fake_state)
+    monkeypatch.setattr(st, "query_params", fake_query_params)
+    monkeypatch.setattr(state_manager.requests, "put", mock_put)
+    monkeypatch.setattr(
+        state_manager.requests,
+        "post",
+        lambda *args, **kwargs: pytest.fail("Renaming must not create a profile"),
+    )
+
+    profile_view.save_profile()
+
+    assert request_data["url"].endswith("/api/v1/users/42")
+    assert request_data["json"] == {"username": "NewName"}
+    assert fake_state.player_id == 42
+    assert fake_state.player_name == "NewName"
+    assert fake_state.saved_profiles == ["Other", "NewName"]
+    assert fake_query_params["player"] == "NewName"
+    assert fake_state.profile_mode == "view"
+
+
+def test_switching_profile_starts_a_new_game(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_state = FakeSessionState(
+        player_id=12,
+        profile_selectbox="AnotherPlayer",
+        profile_mode="switch",
+    )
+    selected_profiles: list[str] = []
+    started_games: list[bool] = []
+
+    def select_profile(username: str) -> None:
+        selected_profiles.append(username)
+        fake_state.player_id = 24
+
+    monkeypatch.setattr(st, "session_state", fake_state)
+    monkeypatch.setattr(state_manager, "select_profile", select_profile)
+    monkeypatch.setattr(
+        state_manager,
+        "start_new_game",
+        lambda: started_games.append(True),
+    )
+
+    profile_view.apply_switch_profile()
+
+    assert selected_profiles == ["AnotherPlayer"]
+    assert started_games == [True]
+    assert fake_state.profile_mode == "view"
+
+
+def test_delete_last_profile_leaves_no_guest_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_state = FakeSessionState(
+        player_id=42,
+        player_name="RemoveMe",
+        saved_profiles=["RemoveMe"],
+    )
+    fake_query_params: dict[str, str] = {}
+    deleted_urls: list[str] = []
+    post_urls: list[str] = []
+
+    def mock_delete(url: str, **kwargs: Any) -> SimpleNamespace:
+        deleted_urls.append(url)
+        return SimpleNamespace(status_code=204)
+
+    def mock_post(url: str, **kwargs: Any) -> SimpleNamespace:
+        post_urls.append(url)
+        return SimpleNamespace(
+            status_code=201,
+            json=lambda: {"session_id": "anonymous-game"},
+        )
+
+    monkeypatch.setattr(
+        state_manager.requests,
+        "get",
+        lambda *args, **kwargs: SimpleNamespace(status_code=200, json=lambda: []),
+    )
+    monkeypatch.setattr(st, "session_state", fake_state)
+    monkeypatch.setattr(st, "query_params", fake_query_params)
+    monkeypatch.setattr(state_manager.requests, "delete", mock_delete)
+    monkeypatch.setattr(state_manager.requests, "post", mock_post)
+
+    assert state_manager.delete_active_profile() is True
+
+    assert deleted_urls == [f"{state_manager.BACKEND_URL}/api/v1/users/42"]
+    assert post_urls == [f"{state_manager.BACKEND_URL}/api/v1/game/start"]
+    assert fake_state.player_name == ""
+    assert "player_id" not in fake_state
+    assert "RemoveMe" not in fake_state.saved_profiles
+    assert "player" not in fake_query_params
+    assert fake_state.session_id == "anonymous-game"
+
+
 def test_invalid_url_session_id_triggers_new_game(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verifies that when URL contains an invalid or expired session_id, a fresh game is created."""
     fake_state = FakeSessionState()
@@ -125,7 +289,7 @@ def test_invalid_url_session_id_triggers_new_game(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(
         state_manager.requests,
         "post",
-        lambda *args, **kwargs: SimpleNamespace(
+        lambda url, **kwargs: SimpleNamespace(
             status_code=201,
             json=lambda: {
                 "session_id": "fallback-fresh-session",
@@ -143,4 +307,3 @@ def test_invalid_url_session_id_triggers_new_game(monkeypatch: pytest.MonkeyPatc
     assert fake_state.session_id == "fallback-fresh-session"
     assert fake_query_params["session_id"] == "fallback-fresh-session"
     assert fake_state.current_row == 0
-

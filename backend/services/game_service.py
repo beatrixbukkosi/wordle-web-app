@@ -7,6 +7,7 @@ from typing import Any
 import uuid
 
 from repositories.game_repository import GameRepository, GameSessionModel
+from repositories.user_repository import UserRepository
 
 logger = logging.getLogger("wordle.game_service")
 
@@ -20,10 +21,17 @@ STATUS_LOST = "LOST"
 class GameService:
     """Encapsulates business rules, dictionary validation, and game progression."""
 
-    def __init__(self, repository: GameRepository | None = None) -> None:
+    def __init__(
+        self,
+        repository: GameRepository | None = None,
+        user_repository: UserRepository | None = None,
+    ) -> None:
         self.answers: list[str] = []
         self.valid_guesses: set[str] = set()
         self.repository: GameRepository = repository or GameRepository()
+        self.user_repository = user_repository or UserRepository(
+            session_factory=self.repository.session_factory
+        )
 
     def load_dictionaries(self) -> None:
         """Loads target answers and valid guess word lists into memory."""
@@ -86,8 +94,12 @@ class GameService:
         self,
         word_length: int = DEFAULT_WORD_LENGTH,
         max_attempts: int = DEFAULT_MAX_ATTEMPTS,
+        player_id: int | None = None,
     ) -> GameSessionModel:
         """Creates and persists a new game session, logging the secret word for development testing."""
+        if player_id is not None and self.user_repository.get_by_id(player_id) is None:
+            raise ValueError(f"Player {player_id} was not found.")
+
         session_id = str(uuid.uuid4())
         secret_word = self.get_random_word()
 
@@ -96,6 +108,7 @@ class GameService:
             secret_word=secret_word,
             word_length=word_length,
             max_attempts=max_attempts,
+            player_id=player_id,
         )
 
         logger.info(
@@ -109,7 +122,39 @@ class GameService:
         """Retrieves stored game state for a given session identifier."""
         return self.repository.get_by_session_id(session_id)
 
-    def submit_guess(self, session_id: str, guess: str) -> dict[str, Any]:
+    def associate_game_with_player(
+        self, session_id: str, player_id: int
+    ) -> GameSessionModel:
+        """Associates an unowned game with a player and records prior completion."""
+        game = self.repository.get_by_session_id(session_id)
+        if game is None:
+            raise ValueError("Game session not found.")
+        if game.player_id is not None:
+            if game.player_id != player_id:
+                raise ValueError("Game session belongs to another player.")
+            return game
+        if self.user_repository.get_by_id(player_id) is None:
+            raise ValueError(f"Player {player_id} was not found.")
+
+        associated_game, was_associated = self.repository.associate_player(
+            session_id,
+            player_id,
+        )
+        if associated_game is None:
+            raise ValueError("Game session not found.")
+        if was_associated and associated_game.game_status in (STATUS_WON, STATUS_LOST):
+            self.user_repository.record_game_result(
+                player_id,
+                won=associated_game.game_status == STATUS_WON,
+            )
+        return associated_game
+
+    def submit_guess(
+        self,
+        session_id: str,
+        guess: str,
+        player_id: int | None = None,
+    ) -> dict[str, Any]:
         """Evaluates a guess for an active game session, updates remaining attempts and status."""
         game = self.repository.get_by_session_id(session_id)
         if not game:
@@ -117,6 +162,11 @@ class GameService:
 
         if game.game_status != STATUS_IN_PROGRESS:
             raise ValueError("Game is already finished.")
+
+        if game.player_id is None and player_id is not None:
+            if self.user_repository.get_by_id(player_id) is None:
+                raise ValueError(f"Player {player_id} was not found.")
+            game.player_id = player_id
 
         guess_upper = guess.strip().upper()
         if not self.is_valid_guess(guess_upper):
@@ -142,12 +192,21 @@ class GameService:
             game_status = STATUS_IN_PROGRESS
 
         new_guesses = list(game.guesses) + [{"guess": guess_upper, "colors": colors}]
-        self.repository.update_game(
+        updated_game = self.repository.update_game(
             session_id=session_id,
             remaining_attempts=remaining_attempts,
             game_status=game_status,
             guesses=new_guesses,
+            player_id=game.player_id,
         )
+        if updated_game is None:
+            raise ValueError("Game is already finished.")
+
+        if game_status in (STATUS_WON, STATUS_LOST) and updated_game.player_id is not None:
+            self.user_repository.record_game_result(
+                updated_game.player_id,
+                won=game_status == STATUS_WON,
+            )
 
         return {
             "session_id": session_id,

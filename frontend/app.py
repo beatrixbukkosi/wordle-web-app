@@ -59,7 +59,7 @@ with nav3:
         unsafe_allow_html=True,
     )
 with nav4:
-    current_streak = st.session_state.get("streak", 0)
+    current_streak = st.session_state.get("current_streak", 0)
     st.markdown(
         f"<div style='text-align: right; margin-top: 5px; font-size: 18px; font-weight: bold;'>🔥 Streak: {current_streak}</div>",
         unsafe_allow_html=True,

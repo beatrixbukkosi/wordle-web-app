@@ -3,7 +3,7 @@
 import os
 from pathlib import Path
 from typing import Generator
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -41,4 +41,13 @@ def init_db(target_engine=None) -> None:
     """Creates database tables if they do not exist."""
     use_engine = target_engine or engine
     Base.metadata.create_all(bind=use_engine)
-
+    if "game_sessions" in inspect(use_engine).get_table_names():
+        columns = {
+            column["name"] for column in inspect(use_engine).get_columns("game_sessions")
+        }
+        if "player_id" not in columns:
+            with use_engine.begin() as connection:
+                connection.exec_driver_sql(
+                    "ALTER TABLE game_sessions "
+                    "ADD COLUMN player_id INTEGER REFERENCES users(id)"
+                )

@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 from typing import Any
-from sqlalchemy import Column, String, Integer, DateTime, JSON
+from sqlalchemy import Column, String, Integer, DateTime, JSON, ForeignKey
 from sqlalchemy.orm import Session, sessionmaker
 
 from repositories.database import Base, SessionLocal
@@ -14,6 +14,7 @@ class GameSessionModel(Base):
     __tablename__ = "game_sessions"
 
     session_id = Column(String(36), primary_key=True, index=True)
+    player_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     secret_word = Column(String(10), nullable=False)
     word_length = Column(Integer, default=5, nullable=False)
     max_attempts = Column(Integer, default=6, nullable=False)
@@ -39,17 +40,24 @@ class GameRepository:
     def __init__(self, session_factory: sessionmaker[Session] = SessionLocal) -> None:
         self._session_factory = session_factory
 
+    @property
+    def session_factory(self) -> sessionmaker[Session]:
+        """Provides the configured factory for repositories sharing this database."""
+        return self._session_factory
+
     def create_game(
         self,
         session_id: str,
         secret_word: str,
         word_length: int = 5,
         max_attempts: int = 6,
+        player_id: int | None = None,
     ) -> GameSessionModel:
         """Persists a new game session in the database."""
         with self._session_factory() as db:
             game = GameSessionModel(
                 session_id=session_id,
+                player_id=player_id,
                 secret_word=secret_word.upper(),
                 word_length=word_length,
                 max_attempts=max_attempts,
@@ -71,12 +79,33 @@ class GameRepository:
                 .first()
             )
 
+    def associate_player(
+        self, session_id: str, player_id: int
+    ) -> tuple[GameSessionModel | None, bool]:
+        """Associates an unowned game with a player and reports whether it changed."""
+        with self._session_factory() as db:
+            game = (
+                db.query(GameSessionModel)
+                .filter(GameSessionModel.session_id == session_id)
+                .first()
+            )
+            if game is None:
+                return None, False
+            if game.player_id is not None:
+                return game, False
+
+            game.player_id = player_id
+            db.commit()
+            db.refresh(game)
+            return game, True
+
     def update_game(
         self,
         session_id: str,
         remaining_attempts: int,
         game_status: str,
         guesses: list[dict[str, Any]],
+        player_id: int | None = None,
     ) -> GameSessionModel | None:
         """Updates attempts, game status, and list of guesses for an active game session."""
         with self._session_factory() as db:
@@ -87,11 +116,14 @@ class GameRepository:
             )
             if not game:
                 return None
+            if game.game_status != "IN_PROGRESS":
+                return None
             game.remaining_attempts = remaining_attempts
             game.game_status = game_status
             game.guesses = list(guesses)
+            if game.player_id is None:
+                game.player_id = player_id
             game.updated_at = datetime.now(timezone.utc)
             db.commit()
             db.refresh(game)
             return game
-
