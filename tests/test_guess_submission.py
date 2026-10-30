@@ -15,6 +15,52 @@ class FakeSessionState:
         return getattr(self, key, default)
 
 
+def test_keyboard_colors_keep_the_strongest_feedback() -> None:
+    board = [
+        list("ABCDE"),
+        list("AFCDE"),
+        list("CDEFG"),
+    ]
+    row_colors = [
+        ["YELLOW", "GREEN", "GRAY", "GRAY", "YELLOW"],
+        ["GREEN", "GRAY", "YELLOW", "GREEN", "GRAY"],
+        ["GREEN", "GRAY", "GRAY", "GRAY", "GRAY"],
+    ]
+
+    assert game_view.get_keyboard_colors(board, row_colors) == {
+        "A": "GREEN",
+        "B": "GREEN",
+        "C": "GREEN",
+        "D": "GREEN",
+        "E": "YELLOW",
+        "F": "GRAY",
+        "G": "GRAY",
+    }
+
+
+def test_keyboard_styles_target_each_colored_key() -> None:
+    styles = game_view.get_keyboard_styles({"A": "GREEN", "Q": "YELLOW"})
+
+    assert ".st-key-btn_A button" in styles
+    assert "background-color: #6aaa64 !important" in styles
+    assert ".st-key-btn_Q button" in styles
+    assert "background-color: #c9b458 !important" in styles
+    assert "[data-testid='stHorizontalBlock']:has(" in styles
+    assert ":nth-child(9))" in styles
+
+
+def test_submit_button_style_shows_valid_and_invalid_guesses() -> None:
+    valid_style = game_view.get_submit_button_style(True)
+    invalid_style = game_view.get_submit_button_style(False)
+
+    assert "background-color: #6aaa64" in valid_style
+    assert "background-color: #d9534f" in invalid_style
+    assert "button[kind='primary']" in valid_style
+    assert "button[kind='primary']:disabled" in invalid_style
+    assert "cursor: not-allowed !important" in invalid_style
+    assert game_view.get_submit_button_style(None) == ""
+
+
 @pytest.mark.parametrize("current_row", [0, 2, 4])
 def test_valid_nonwinning_guess_uses_one_attempt(
     monkeypatch: pytest.MonkeyPatch, current_row: int
@@ -25,6 +71,7 @@ def test_valid_nonwinning_guess_uses_one_attempt(
         game_won=False,
         current_row=current_row,
         current_col=5,
+        guess_is_valid=True,
         board=[["P", "A", "P", "E", "R"] for _ in range(6)],
         target_word="APPLE",
         row_colors=[[None] * 5 for _ in range(6)],
@@ -50,6 +97,7 @@ def test_valid_nonwinning_guess_uses_one_attempt(
     # Assert
     assert state.current_row == current_row + 1
     assert state.current_col == 0
+    assert state.guess_is_valid is None
     assert state.row_colors[current_row] == [
         "YELLOW",
         "YELLOW",

@@ -14,11 +14,112 @@ TILE_COLORS: dict[str, str] = {
     "GRAY": "#787c7e",
 }
 
+KEY_COLOR_PRIORITY: dict[str, int] = {
+    "GRAY": 1,
+    "YELLOW": 2,
+    "GREEN": 3,
+}
+
 KEYBOARD_ROWS: list[list[str]] = [
     ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
     ["A", "S", "D", "F", "G", "H", "J", "K", "L"],
     ["Z", "X", "C", "V", "B", "N", "M", "⌫"],
 ]
+
+
+def get_keyboard_colors(
+    board: list[list[str]], row_colors: list[list[str | None]]
+) -> dict[str, str]:
+    """Returns the strongest evaluated color for each guessed letter."""
+    keyboard_colors: dict[str, str] = {}
+    for letters, colors in zip(board, row_colors):
+        for letter, color in zip(letters, colors):
+            if not letter or color not in KEY_COLOR_PRIORITY:
+                continue
+
+            current_color = keyboard_colors.get(letter)
+            if (
+                current_color is None
+                or KEY_COLOR_PRIORITY[color] > KEY_COLOR_PRIORITY[current_color]
+            ):
+                keyboard_colors[letter] = color
+
+    return keyboard_colors
+
+
+def get_keyboard_styles(keyboard_colors: dict[str, str]) -> str:
+    """Builds CSS targeting evaluated keys in old and new Streamlit layouts."""
+    styles: list[str] = []
+    for key, color in keyboard_colors.items():
+        tile_color = TILE_COLORS[color]
+        styles.append(
+            f".st-key-btn_{key} button {{ "
+            f"background-color: {tile_color} !important; "
+            f"border-color: {tile_color} !important; "
+            "color: white !important; }"
+        )
+
+    for row_keys in KEYBOARD_ROWS:
+        column_count = len(row_keys)
+        for key_index, key in enumerate(row_keys):
+            color = keyboard_colors.get(key)
+            if color is None:
+                continue
+
+            tile_color = TILE_COLORS[color]
+            row_selector = (
+                "[data-testid='stHorizontalBlock']:has("
+                f"> [data-testid='column']:nth-child({column_count})"
+                f"):not(:has(> [data-testid='column']:nth-child({column_count + 1})))"
+            )
+            styles.append(
+                f"{row_selector} > [data-testid='column']:nth-child({key_index + 1}) "
+                f"[data-testid='stButton'] button {{ "
+                f"background-color: {tile_color} !important; "
+                f"border-color: {tile_color} !important; "
+                "color: white !important; }"
+            )
+    return "".join(styles)
+
+
+def get_submit_button_style(guess_is_valid: bool | None) -> str:
+    """Returns the submit button color for the current full guess."""
+    if guess_is_valid is None:
+        return ""
+
+    color = "#6aaa64" if guess_is_valid else "#d9534f"
+    declarations = (
+        f"background-color: {color} !important; "
+        f"border-color: {color} !important; "
+        "color: white !important;"
+    )
+    return (
+        f"button[kind='primary'] {{ {declarations} }}"
+        "button[kind='primary']:disabled { cursor: not-allowed !important; }"
+    )
+
+
+def validate_current_guess() -> None:
+    """Checks the current five-letter guess without consuming a game attempt."""
+    row = st.session_state.current_row
+    guess = "".join(st.session_state.board[row]).upper()
+    try:
+        response = requests.post(
+            f"{BACKEND_URL}/api/v1/game/word-validation",
+            json={"guess": guess},
+            timeout=5,
+        )
+        if response.status_code == 200:
+            st.session_state.guess_is_valid = response.json().get("is_valid", False)
+            st.session_state.backend_error = None
+        else:
+            st.session_state.guess_is_valid = None
+            st.session_state.backend_error = (
+                f"Error validating guess with server (HTTP {response.status_code})."
+            )
+    except requests.exceptions.RequestException:
+        st.session_state.guess_is_valid = None
+        st.session_state.backend_error = "Backend is unreachable!"
 
 
 def submit_guess() -> None:
@@ -27,7 +128,10 @@ def submit_guess() -> None:
         return
 
     row = st.session_state.current_row
-    if st.session_state.current_col != 5:
+    if (
+        st.session_state.current_col != 5
+        or not st.session_state.get("guess_is_valid", False)
+    ):
         return
 
     guess_word = "".join(st.session_state.board[row]).upper()
@@ -48,17 +152,17 @@ def submit_guess() -> None:
         if response.status_code == 200:
             data = response.json()
             if not data.get("is_valid", False):
-                st.toast(f"'{guess_word}' is not a valid word!", icon="⚠️")
+                st.session_state.guess_is_valid = False
                 return
 
             colors = data.get("colors") or [None] * len(guess_word)
             st.session_state.row_colors[row] = colors
+            st.session_state.backend_error = None
 
             is_winning = data.get("is_winning", False) or data.get("game_status") == "WON"
             if is_winning:
                 st.session_state.game_won = True
                 st.session_state.game_status = "WON"
-                st.toast("Congratulations! That's the winning word! 🎉", icon="🏆")
             else:
                 remaining = data.get("remaining_attempts")
                 status = data.get("game_status")
@@ -66,16 +170,17 @@ def submit_guess() -> None:
                 if is_lost:
                     st.session_state.game_lost = True
                     st.session_state.game_status = "LOST"
-                    st.toast("Game over! You've used all attempts.", icon="😢")
                 else:
-                    st.toast(f"'{guess_word}' is a valid guess!", icon="✅")
                     if st.session_state.current_row < 5:
                         st.session_state.current_row += 1
                         st.session_state.current_col = 0
+                        st.session_state.guess_is_valid = None
         else:
-            st.toast("Error validating guess with server.", icon="🚨")
+            st.session_state.backend_error = (
+                f"Error validating guess with server (HTTP {response.status_code})."
+            )
     except requests.exceptions.RequestException:
-        st.toast("Backend is unreachable!", icon="🚨")
+        st.session_state.backend_error = "Backend is unreachable!"
 
 
 def handle_key_press(key: str) -> None:
@@ -90,12 +195,17 @@ def handle_key_press(key: str) -> None:
         if col > 0:
             st.session_state.current_col -= 1
             st.session_state.board[row][st.session_state.current_col] = ""
+            st.session_state.guess_is_valid = None
     elif key == "SUBMIT":
         submit_guess()
     else:
         if col < 5 and row < 6:
             st.session_state.board[row][col] = key
             st.session_state.current_col += 1
+            if st.session_state.current_col == 5:
+                validate_current_guess()
+            else:
+                st.session_state.guess_is_valid = None
 
 
 def render() -> None:
@@ -129,6 +239,13 @@ def render() -> None:
     st.markdown(grid_html, unsafe_allow_html=True)
 
     # Render virtual keyboard
+    keyboard_colors = get_keyboard_colors(
+        st.session_state.board, st.session_state.row_colors
+    )
+    keyboard_styles = get_keyboard_styles(keyboard_colors)
+    if keyboard_styles:
+        st.markdown(f"<style>{keyboard_styles}</style>", unsafe_allow_html=True)
+
     for row_keys in KEYBOARD_ROWS:
         cols = st.columns(len(row_keys))
         for index, key in enumerate(row_keys):
@@ -145,15 +262,24 @@ def render() -> None:
 
     # Render submit button centered, with start new game below it at a small distance
     can_submit = st.session_state.current_col == 5 and not game_over
+    guess_is_valid = st.session_state.get("guess_is_valid")
+    invalid_guess = can_submit and guess_is_valid is False
+    submit_button_style = get_submit_button_style(
+        guess_is_valid if can_submit else None
+    )
+    if submit_button_style:
+        st.markdown(f"<style>{submit_button_style}</style>", unsafe_allow_html=True)
     _, center_col, _ = st.columns([1, 2, 1])
 
     with center_col:
         st.button(
             "SUBMIT GUESS",
             key="btn_submit_guess",
+            type="primary",
             use_container_width=True,
-            disabled=not can_submit,
+            disabled=not can_submit or invalid_guess,
             on_click=submit_guess,
+            help="Invalid word" if invalid_guess else None,
         )
         st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
         st.button(

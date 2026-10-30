@@ -44,6 +44,7 @@ def _reset_board_state() -> None:
     st.session_state.game_won = False
     st.session_state.game_lost = False
     st.session_state.game_status = "IN_PROGRESS"
+    st.session_state.guess_is_valid = None
 
 
 def _restore_game_from_state(game_data: dict[str, Any]) -> None:
@@ -67,6 +68,7 @@ def _restore_game_from_state(game_data: dict[str, Any]) -> None:
     st.session_state.row_colors = row_colors
     st.session_state.current_row = min(len(guesses), BOARD_ROWS - 1 if (st.session_state.game_won or st.session_state.game_lost) else len(guesses))
     st.session_state.current_col = 0
+    st.session_state.guess_is_valid = None
 
 
 def fetch_game_state(session_id: str) -> dict[str, Any] | None:

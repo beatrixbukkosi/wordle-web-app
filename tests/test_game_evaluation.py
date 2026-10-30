@@ -67,3 +67,20 @@ def test_validate_guess_returns_colors_for_a_valid_five_letter_guess(
     # Assert
     assert response["is_valid"] is True
     assert response["colors"] == ["YELLOW", "YELLOW", "GREEN", "YELLOW", "GRAY"]
+
+
+@pytest.mark.parametrize(
+    ("guess", "valid_guesses", "expected"),
+    [("PAPER", {"PAPER"}, True), ("XXXXX", {"PAPER"}, False), ("PAPE", {"PAPER"}, False)],
+)
+def test_validate_word_checks_dictionary_without_submitting_guess(
+    monkeypatch: pytest.MonkeyPatch,
+    guess: str,
+    valid_guesses: set[str],
+    expected: bool,
+) -> None:
+    monkeypatch.setattr(game_api.game_service, "valid_guesses", valid_guesses)
+
+    response = game_api.validate_word(game_api.WordValidationRequest(guess=guess))
+
+    assert response.is_valid is expected

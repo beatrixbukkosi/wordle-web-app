@@ -45,6 +45,18 @@ class GuessRequest(BaseModel):
     target_word: str | None = None
 
 
+class WordValidationRequest(BaseModel):
+    """Request payload for checking whether a word is an accepted guess."""
+
+    guess: str
+
+
+class WordValidationResponse(BaseModel):
+    """Response indicating whether a word is an accepted guess."""
+
+    is_valid: bool
+
+
 class GuessResponse(BaseModel):
     """Response returned after submitting or validating a guess."""
 
@@ -61,4 +73,3 @@ class GuessResponse(BaseModel):
     def __getitem__(self, item: str) -> Any:
         """Enables dictionary-like subscripting for backward compatibility with unit tests."""
         return getattr(self, item)
-

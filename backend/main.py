@@ -14,6 +14,8 @@ from models.game_schemas import (
     GuessRequest,
     GuessResponse,
     GuessResult,
+    WordValidationRequest,
+    WordValidationResponse,
 )
 from repositories.database import init_db
 from services.game_service import GameService
@@ -90,6 +92,18 @@ def get_game_state(session_id: str) -> GameStateResponse:
         remaining_attempts=game.remaining_attempts,
         game_status=game.game_status,
         guesses=[GuessResult(**guess) for guess in game.guesses],
+    )
+
+
+@app.post(
+    "/api/v1/game/word-validation",
+    response_model=WordValidationResponse,
+)
+def validate_word(request: WordValidationRequest) -> WordValidationResponse:
+    """Checks a word against the accepted-guess dictionary without changing game state."""
+    guess = request.guess.strip().upper()
+    return WordValidationResponse(
+        is_valid=len(guess) == 5 and game_service.is_valid_guess(guess)
     )
 
 
