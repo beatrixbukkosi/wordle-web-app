@@ -53,7 +53,7 @@ Make sure the method works correctly for words with repeated letters and follows
 ```
 * **AI Response / Implementation:** The assistant implemented `evaluate_guess` in `backend/services/game_service.py` using two passes. In the first pass it marks exact-position matches as `GREEN` and removes those letters from a list of the target's remaining letters. In the second pass it examines only non-green guess letters. If a matching letter remains, it marks that guess letter `YELLOW` and removes one occurrence, otherwise, it stays `GRAY`. This ensures duplicate letters are scored according to their available occurrences. The validation endpoint returns the color list and the frontend uses it to color the submitted tiles.
 * **Decision & Reasons:** I **accepted** this implementation because it follows the requested green-first order and correctly limits yellow matches when letters are repeated. Keeping the evaluation logic in `GameService` also keeps game rules out of the FastAPI route handler.
-* **Verification (Evidence):** I manually checked the example `Target="APPLE", Guess="PAPER"` and repeated-letter cases and also verified the behavior with pytest tests in `tests/test_game_evaluation.py` and `tests/test_guess_submission.py`.
+* **Verification (Evidence):** I manually checked the example `Target="APPLE", Guess="PAPER"` and repeated-letter cases and also verified the behavior with pytest tests in `tests/test_requirement_1.py` and `tests/test_requirement_4.py`.
 
 ### Decision Case 2: Server-side Session Management & Page Reload Persistence (AI Tool Comparison)
 - **Problem & Context:** In the initial prototype, the target secret word was stored in client-side state (`st.session_state`), sent to the backend during each guess submission, and explicitly rendered in the frontend debug menu. Furthermore, refreshing the browser (F5) cleared the in-memory state and lost the ongoing game session. To enforce backend state authority (AC #8 - State Management & Persistence) and prevent client-side secret leakage, I needed to refactor the architecture so the backend acts as the single source of truth using a session identifier (`session_id`), syncs with the Streamlit URL query parameters (`st.query_params`), and logs the secret word strictly on the backend console for developer debugging.
@@ -74,7 +74,7 @@ Refactor the game and session management of the Wordle application in both the b
 Please do the necessary backend (FastAPI) and frontend (Streamlit) code modifications.
 ```
 - **Decision & Reasons:** I **accepted Google Antigravity's (Gemini 3.8 Flash)** implementation and rejected GitHub Copilot's solution. Although Gemini modified twice as much code (~1,200+ lines vs. ~500 lines), its output was significantly higher quality: it strictly adhered to `AGENTS.md` by using SQLAlchemy ORM instead of raw SQL queries, correctly used `POST` instead of `GET` for starting games, applied clean Streamlit event callbacks, and provided robust Pydantic schemas that guaranteed the `secret_word` was omitted from client-facing API responses.
-- **Verification (Evidence):** I manually tested browser refreshes (F5) to verify state restoration via `st.query_params`, checked `uvicorn` console logs for secret word logging, and ran automated tests using pytest (`python -m pytest -q`), where all 22 tests passed across `test_session_management.py`, `test_frontend_state.py`, `test_game_evaluation.py`, and `test_guess_submission.py`.
+- **Verification (Evidence):** I manually tested browser refreshes (F5) to verify state restoration via `st.query_params` and checked `uvicorn` console logs for secret word logging. The reorganized pytest coverage is in `tests/test_requirement_1.py` through `tests/test_requirement_9.py`; the latest full run passed all 50 tests (`python -m pytest -q`). Session restoration is covered by `test_requirement_8.py`, while session creation and backend session checks are in `test_requirement_9.py`.
 
 ### Decision Case 3: Persistent Player Profiles, Game Statistics & Global Leaderboard
 - **Problem & Context:** In the initial prototype, user statistics (games played, win rate, current/max win streaks) and leaderboard entries were hardcoded mock data in `stats_view.py`. To fulfill the full application specification, I needed a persistent data model and backend service to track player profiles, automatically update statistics upon game completion (`WON` or `LOST`), and serve an aggregated global leaderboard ranked by performance.
@@ -94,7 +94,7 @@ Requirements:
   - **User Profile Edit Fix:** Clicking the "Edit Profile" button created a brand-new user record in the database instead of updating the active user's username. I prompted the AI to refactor the user management flow by introducing an explicit `PUT /api/v1/users/{user_id}` endpoint and updating the Streamlit form handler to pass the active `user_id`.
   - **Game Completion Stats Hook Fix:** On victory, neither the `games_played` count nor the `current_streak` incremented. I prompted the AI to fix the game completion hook in `GameService` so that stats (`games_played`, `games_won`, `current_streak`, and `max_streak`) update atomically upon game status transitions (`WON` and `LOST`).
   - **Final Assessment:** I accepted the refined version because it guaranteed database entity integrity, prevented duplicate profile creation, and ensured accurate, real-time statistics and streak tracking across all user profiles.
-- **Verification:** I thoroughly verified all user flows manually through repeated playthroughs (testing profile creation, profile editing, win/loss streak progression, and real-time leaderboard updates). Additionally, automated unit tests cover profile persistence, win/loss counters, streak resets, win-rate calculation, one-time completion accounting, and leaderboard ordering.
+- **Verification:** I thoroughly verified all user flows manually through repeated playthroughs (testing profile creation, profile editing, win/loss streak progression, and real-time leaderboard updates). Automated tests for profile persistence, win/loss counters, streak resets, win-rate calculation, one-time completion accounting, and leaderboard ordering are in `tests/test_requirement_9.py`; win and loss result statistics are also covered by `test_requirement_2.py` and `test_requirement_3.py`.
 ---
 
 ## 3. Testing and Defect Detection
@@ -125,6 +125,7 @@ if game_status in (STATUS_WON, STATUS_LOST) and game.player_id is not None:
     )
 ```
 ##### Selected Test Failure from the Full Test Run:
+The following is a historical failure captured before the test files were reorganized. Its current equivalent is `tests/test_requirement_9.py::test_profiles_are_persistent_and_stats_update_once_on_completion`.
 ```text
 python -m pytest -q
 ..........................F............... [100%]
@@ -196,9 +197,9 @@ For an already completed unowned game restored from its URL, the `/api/v1/game/{
 
 ##### Verification Test Output (PASSED):
 ```text
-python -m pytest tests/test_player_statistics.py tests/test_guess_submission.py -q
-...................................                                      [100%]
-42 passed
+python -m pytest tests/test_requirement_9.py tests/test_requirement_2.py -q
+........................                                                 [100%]
+24 passed
 ```
 
 ## 4. Setup & Execution Instructions
