@@ -45,6 +45,9 @@ def test_keyboard_styles_target_each_colored_key() -> None:
     assert "background-color: #6aaa64 !important" in styles
     assert ".st-key-btn_Q button" in styles
     assert "background-color: #c9b458 !important" in styles
+    assert "height: 48px !important" in styles
+    assert "transform: none !important" in styles
+    assert "transition: none !important" in styles
     assert "[data-testid='stHorizontalBlock']:has(" in styles
     assert ":nth-child(9))" in styles
 
@@ -58,6 +61,9 @@ def test_submit_button_style_shows_valid_and_invalid_guesses() -> None:
     assert "button[kind='primary']" in valid_style
     assert "button[kind='primary']:disabled" in invalid_style
     assert "cursor: not-allowed !important" in invalid_style
+    assert "height: 48px !important" in valid_style
+    assert "transform: none !important" in valid_style
+    assert "transition: none !important" in valid_style
     assert game_view.get_submit_button_style(None) == ""
 
 

@@ -56,7 +56,10 @@ def get_keyboard_styles(keyboard_colors: dict[str, str]) -> str:
             f".st-key-btn_{key} button {{ "
             f"background-color: {tile_color} !important; "
             f"border-color: {tile_color} !important; "
-            "color: white !important; }"
+            "color: white !important; "
+            "box-sizing: border-box !important; "
+            "height: 48px !important; min-height: 48px !important; "
+            "transform: none !important; transition: none !important; }"
         )
 
     for row_keys in KEYBOARD_ROWS:
@@ -77,7 +80,10 @@ def get_keyboard_styles(keyboard_colors: dict[str, str]) -> str:
                 f"[data-testid='stButton'] button {{ "
                 f"background-color: {tile_color} !important; "
                 f"border-color: {tile_color} !important; "
-                "color: white !important; }"
+                "color: white !important; "
+                "box-sizing: border-box !important; "
+                "height: 48px !important; min-height: 48px !important; "
+                "transform: none !important; transition: none !important; }"
             )
     return "".join(styles)
 
@@ -91,7 +97,10 @@ def get_submit_button_style(guess_is_valid: bool | None) -> str:
     declarations = (
         f"background-color: {color} !important; "
         f"border-color: {color} !important; "
-        "color: white !important;"
+        "color: white !important; "
+        "box-sizing: border-box !important; "
+        "height: 48px !important; min-height: 48px !important; "
+        "transform: none !important; transition: none !important;"
     )
     return (
         f"button[kind='primary'] {{ {declarations} }}"
@@ -248,8 +257,16 @@ def render() -> None:
         st.session_state.board, st.session_state.row_colors
     )
     keyboard_styles = get_keyboard_styles(keyboard_colors)
-    if keyboard_styles:
-        st.markdown(f"<style>{keyboard_styles}</style>", unsafe_allow_html=True)
+    can_submit = st.session_state.current_col == 5 and not game_over
+    guess_is_valid = st.session_state.get("guess_is_valid")
+    invalid_guess = can_submit and guess_is_valid is False
+    submit_button_style = get_submit_button_style(
+        guess_is_valid if can_submit else None
+    )
+    st.markdown(
+        f"<style>{keyboard_styles}{submit_button_style}</style>",
+        unsafe_allow_html=True,
+    )
 
     for row_keys in KEYBOARD_ROWS:
         cols = st.columns(len(row_keys))
@@ -266,14 +283,6 @@ def render() -> None:
     st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
 
     # Render submit button centered, with start new game below it at a small distance
-    can_submit = st.session_state.current_col == 5 and not game_over
-    guess_is_valid = st.session_state.get("guess_is_valid")
-    invalid_guess = can_submit and guess_is_valid is False
-    submit_button_style = get_submit_button_style(
-        guess_is_valid if can_submit else None
-    )
-    if submit_button_style:
-        st.markdown(f"<style>{submit_button_style}</style>", unsafe_allow_html=True)
     _, center_col, _ = st.columns([1, 2, 1])
 
     with center_col:

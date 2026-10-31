@@ -2,7 +2,21 @@
 .block-container { padding-top: 1.5rem !important; padding-bottom: 0rem !important; }
 footer { visibility: hidden; }
 header { visibility: hidden; }
-.stButton > button { padding: 0px 5px !important; }
+.stButton > button {
+    box-sizing: border-box !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    padding: 0px 8px !important;
+    position: relative;
+    top: 2px;
+    transform: none !important;
+    transition: none !important;
+}
+.stButton > button:hover,
+.stButton > button:focus,
+.stButton > button:active {
+    transform: none !important;
+}
 
 /* General Typography */
 .center-text { text-align: center; }
