@@ -50,6 +50,7 @@ def test_restore_active_state_from_url_on_refresh(monkeypatch: pytest.MonkeyPatc
 
     monkeypatch.setattr(st, "session_state", fake_state)
     monkeypatch.setattr(st, "query_params", fake_query_params)
+    monkeypatch.setattr(state_manager, "load_saved_profiles", lambda: None)
     monkeypatch.setattr(
         state_manager,
         "fetch_game_state",

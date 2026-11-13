@@ -213,7 +213,7 @@ python -m pytest tests/test_requirement_9.py tests/test_requirement_2.py -q
 2. Run `pip install -r requirements.txt`.
 
 ### Running the Application
-1. Start the backend: `uvicorn backend.main:app --reload`
+1. Start the backend: `uvicorn main:app --reload --app-dir backend`
 2. Start the frontend: `streamlit run frontend/app.py`
 
 ### Running the Tests

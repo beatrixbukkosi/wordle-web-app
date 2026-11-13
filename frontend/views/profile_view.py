@@ -51,7 +51,7 @@ def render():
             if st.session_state.saved_profiles:
                 actions[1].button("🔄 Switch", use_container_width=True, on_click=set_profile_mode, args=("switch",))
             actions[2 if st.session_state.saved_profiles else 1].button(
-                "➕ New",
+                "➕ New profile",
                 use_container_width=True,
                 on_click=set_profile_mode,
                 args=("new",),
@@ -63,13 +63,32 @@ def render():
                 args=("delete_confirm",),
             )
         else:
-            st.info("No active profile. Create one to save your statistics.")
-            st.button(
-                "➕ Új profil",
-                use_container_width=True,
-                on_click=set_profile_mode,
-                args=("new",),
-            )
+            st.info("No active profile. Select an existing profile or create a new one.")
+            if st.session_state.saved_profiles:
+                st.selectbox(
+                    "Select a profile:",
+                    st.session_state.saved_profiles,
+                    key="profile_selectbox",
+                )
+                col1, col2 = st.columns(2)
+                col1.button(
+                    "✅ Select",
+                    use_container_width=True,
+                    on_click=apply_switch_profile,
+                )
+                col2.button(
+                    "➕ New profile",
+                    use_container_width=True,
+                    on_click=set_profile_mode,
+                    args=("new",),
+                )
+            else:
+                st.button(
+                    "➕ New profile",
+                    use_container_width=True,
+                    on_click=set_profile_mode,
+                    args=("new",),
+                )
         
     elif st.session_state.profile_mode in ["edit", "new"]:
         prompt = "Edit your name:" if st.session_state.profile_mode == "edit" else "Enter new profile name:"

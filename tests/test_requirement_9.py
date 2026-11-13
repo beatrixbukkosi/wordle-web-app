@@ -260,6 +260,14 @@ def test_initialize_without_profile_does_not_create_guest(
     fake_state = FakeSessionState()
     fake_query_params: dict[str, str] = {}
     requested_urls: list[str] = []
+    requested_profile_urls: list[str] = []
+
+    def mock_get(url: str, **kwargs: Any) -> SimpleNamespace:
+        requested_profile_urls.append(url)
+        return SimpleNamespace(
+            status_code=200,
+            json=lambda: [{"id": 7, "username": "ExistingPlayer"}],
+        )
 
     def mock_post(url: str, **kwargs: Any) -> SimpleNamespace:
         requested_urls.append(url)
@@ -270,15 +278,52 @@ def test_initialize_without_profile_does_not_create_guest(
 
     monkeypatch.setattr(st, "session_state", fake_state)
     monkeypatch.setattr(st, "query_params", fake_query_params)
+    monkeypatch.setattr(state_manager.requests, "get", mock_get)
     monkeypatch.setattr(state_manager.requests, "post", mock_post)
 
     state_manager.initialize_state()
 
     assert fake_state.player_name == ""
-    assert fake_state.saved_profiles == []
+    assert fake_state.saved_profiles == ["ExistingPlayer"]
+    assert fake_state.profiles_loaded is True
     assert "player_id" not in fake_state
+    assert requested_profile_urls == [f"{state_manager.BACKEND_URL}/api/v1/users"]
     assert requested_urls == [f"{state_manager.BACKEND_URL}/api/v1/game/start"]
     assert "player" not in fake_query_params
+
+
+def test_existing_profiles_are_selectable_without_an_active_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verifies saved profiles and the create-profile action are visible."""
+    fake_state = FakeSessionState(
+        player_name="",
+        saved_profiles=["ExistingPlayer"],
+        profile_mode="view",
+    )
+    selectbox_options: list[str] = []
+    button_labels: list[str] = []
+
+    class FakeColumn:
+        def button(self, label: str, **kwargs: Any) -> None:
+            button_labels.append(label)
+
+    monkeypatch.setattr(st, "session_state", fake_state)
+    monkeypatch.setattr(state_manager, "load_saved_profiles", lambda: None)
+    monkeypatch.setattr(st, "markdown", lambda *args, **kwargs: None)
+    monkeypatch.setattr(st, "info", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        st,
+        "selectbox",
+        lambda label, options, **kwargs: selectbox_options.extend(options),
+    )
+    monkeypatch.setattr(st, "columns", lambda count: [FakeColumn() for _ in range(count)])
+
+    profile_view.render()
+
+    assert selectbox_options == ["ExistingPlayer"]
+    assert "✅ Select" in button_labels
+    assert "➕ Create new profile" in button_labels
 
 
 def test_rename_active_profile_uses_update_and_keeps_profile_id(
@@ -406,6 +451,7 @@ def test_invalid_url_session_id_triggers_new_game(monkeypatch: pytest.MonkeyPatc
 
     monkeypatch.setattr(st, "session_state", fake_state)
     monkeypatch.setattr(st, "query_params", fake_query_params)
+    monkeypatch.setattr(state_manager, "load_saved_profiles", lambda: None)
     monkeypatch.setattr(state_manager, "fetch_game_state", lambda session_id: None)
     monkeypatch.setattr(
         state_manager.requests,

@@ -16,6 +16,8 @@ def _init_user_profile_state() -> None:
         st.session_state.player_name = ""
     if "saved_profiles" not in st.session_state:
         st.session_state.saved_profiles = []
+    if "profiles_loaded" not in st.session_state:
+        st.session_state.profiles_loaded = False
     if "profile_mode" not in st.session_state:
         st.session_state.profile_mode = "view"
     if "current_view" not in st.session_state:
@@ -157,6 +159,7 @@ def load_saved_profiles() -> None:
             ):
                 st.session_state.saved_profiles.append(st.session_state.player_name)
             st.session_state.backend_error = None
+            st.session_state.profiles_loaded = True
         else:
             st.session_state.backend_error = (
                 f"Failed to load player profiles (HTTP {response.status_code})."
@@ -291,6 +294,9 @@ def start_new_game() -> None:
 def initialize_state() -> None:
     """Central entry point initializing global state and restoring active session from URL if present."""
     _init_user_profile_state()
+
+    if not st.session_state.get("profiles_loaded", False):
+        load_saved_profiles()
 
     requested_player = st.query_params.get("player")
     if requested_player == "Guest" or st.session_state.player_name == "Guest":
