@@ -210,11 +210,11 @@ python -m pytest tests/test_requirement_9.py tests/test_requirement_2.py -q
 
 ### Installation
 1. Clone the repository.
-2. Run `pip install -r requirements.txt`.
+2. Run `pip install -r requirements.txt` from the project root.
 
 ### Running the Application
-1. Start the backend: `uvicorn main:app --reload --app-dir backend`
-2. Start the frontend: `streamlit run frontend/app.py`
+1. Start the backend: `uvicorn main:app --reload --app-dir backend` from the project root.
+2. Start the frontend: `streamlit run frontend/app.py` from the project root.
 
 ### Running the Tests
 
